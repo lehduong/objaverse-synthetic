@@ -15,7 +15,6 @@ Example usage:
 
 Here, input_model_paths.json is a json file containing a list of paths to .glb.
 """
-
 import argparse
 import math
 import os
@@ -26,7 +25,9 @@ import urllib.request
 from typing import Tuple
 import json
 import bpy
+import numpy as np
 from mathutils import Vector
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -39,8 +40,8 @@ parser.add_argument("--output_dir", type=str, default="./views")
 parser.add_argument(
     "--engine", type=str, default="BLENDER_EEVEE", choices=["CYCLES", "BLENDER_EEVEE"]
 )
-parser.add_argument("--num_images", type=int, default=120)
-parser.add_argument("--camera_dist", type=int, default=1.5)
+parser.add_argument("--num_images", type=int, default=12)
+parser.add_argument("--camera_dist", type=int, default=4)
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
 args = parser.parse_args(argv)
@@ -48,6 +49,10 @@ args = parser.parse_args(argv)
 context = bpy.context
 scene = context.scene
 render = scene.render
+
+scene.render.use_compositing = True
+scene.use_nodes = True
+scene.view_layers["ViewLayer"].use_pass_z = True
 
 render.engine = args.engine
 render.image_settings.file_format = "PNG"
@@ -148,9 +153,9 @@ def scene_meshes():
             yield obj
 
 
-def normalize_scene():
+def normalize_scene(scale):
     bbox_min, bbox_max = scene_bbox()
-    scale = 1 / max(bbox_max - bbox_min)
+    scale = scale / max(bbox_max - bbox_min)
     for obj in scene_root_objects():
         obj.scale = obj.scale * scale
     # Apply scale to matrix_world.
@@ -172,7 +177,36 @@ def setup_camera():
     cam_constraint.up_axis = "UP_Y"
     return cam, cam_constraint
 
+def setup_depth_viewer(max_depth=10):
+    tree = scene.node_tree
+    links = tree.links
+    for n in tree.nodes:
+        tree.nodes.remove(n)
+    rl = tree.nodes.new('CompositorNodeRLayers')      
+    map = tree.nodes.new('CompositorNodeMapValue') 
+    map.min[0] = 0
+    map.max[0] = 10
+    map.use_min = True
+    map.use_max = True
+    set_output_extension('exr')
+    normalize = tree.nodes.new('CompositorNodeNormalize') 
+    output_file = tree.nodes.new('CompositorNodeOutputFile')
+    # links.new(rl.outputs['Depth'], normalize.inputs[0]) 
+    links.new(rl.outputs['Depth'], map.inputs[0])
+    links.new(map.outputs[0], output_file.inputs[0])
 
+    return rl, output_file
+
+def set_output_extension(type='png'):
+    if type == 'png':
+        render.image_settings.file_format = "PNG"
+        render.image_settings.color_mode = "RGBA"
+    elif type == 'exr':
+        render.image_settings.file_format = "OPEN_EXR"
+        render.image_settings.color_mode = "RGB"
+    else:
+        raise ValueError("Expect type to be png or exr")
+    
 def save_images(object_file: str) -> None:
     """Saves rendered images of the object in the scene."""
     os.makedirs(args.output_dir, exist_ok=True)
@@ -180,19 +214,24 @@ def save_images(object_file: str) -> None:
     # load the object
     load_object(object_file)
     object_uid = os.path.basename(object_file).split(".")[0]
-    normalize_scene()
+    normalize_scene(scale=3.5) #TODO: how large is the object
     add_lighting()
     cam, cam_constraint = setup_camera()
     # create an empty object to track
     empty = bpy.data.objects.new("Empty", None)
     scene.collection.objects.link(empty)
     cam_constraint.target = empty
+    # setup nodes for depth rendering
+    max_depth = 25 # clamp depth to be in the range of [0; max_depth]
+    _, output_file = setup_depth_viewer(max_depth=max_depth)
+    output_file.base_path = os.path.join(args.output_dir, object_uid, 'depth')
     # list of camera pose
     frames = {'train': [], 'val': [], 'test': []}
     to_export = {
         "camera_angle_x": bpy.data.cameras[0].angle_x,
         "width": render.resolution_x,
-        "height": render.resolution_y
+        "height": render.resolution_y,
+        "clamp_depth": max_depth
     }
     for i in range(args.num_images):
         bpy.context.scene.frame_set(i)
@@ -214,7 +253,15 @@ def save_images(object_file: str) -> None:
         # render the image
         render_path = os.path.join(args.output_dir, object_uid, mode, f"{i:03d}.png")
         scene.render.filepath = render_path
+        set_output_extension('png')
         bpy.ops.render.render(write_still=True)
+        # get depth image
+        # depth_image = np.array(bpy.data.images['Viewer Node'].pixels).reshape(render.resolution_y, render.resolution_x, 4)
+        # disp = 1 / depth_image[:, :, 0]
+        # with open(os.path.join(args.output_dir, object_uid, mode, f"{i:03d}_depth.npz"), 'w') as f:
+            # np.savez(f, disp)
+
+        # store camera pose for this frame
         pos, rt, scale = cam.matrix_world.decompose()
         bpy.context.view_layer.update()
         to_add = get_frame_poses(pos, rt, i, mode)
