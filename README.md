@@ -45,8 +45,9 @@ sudo python3 scripts/start_xserver.py start
 1. Download the objects:
 
 ```bash
-python3 scripts/download_objaverse.py --start_i 0 --end_i 100
+python3 scripts/download_objaverse.py --start_i 0 --end_i 100000 --n_objects 100
 ```
+This script sorts a list of uid from `start_i` to `end_i` and output the path of `n_objects` most starred.
 
 2. Start the distributed rendering script:
 
