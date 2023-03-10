@@ -11,12 +11,17 @@ from tqdm import tqdm
 
 @dataclass
 class Args:
+    """We will sort a list of uid from start_i to end_i and select n_objects most starred"""
+    
     start_i: int
     """total number of files uploaded"""
 
     end_i: int
     """total number of files uploaded"""
 
+    n_objects: int = 10
+    """total number of objects will be render."""
+    
     skip_completed: bool = False
     """whether to skip the files that have already been downloaded"""
 
@@ -40,7 +45,7 @@ def get_completed_uids():
 # set the random seed to 42
 if __name__ == "__main__":
     args = tyro.cli(Args)
-
+    
     random.seed(42)
 
     uids = objaverse.load_uids()
@@ -49,7 +54,9 @@ if __name__ == "__main__":
 
     object_paths = objaverse._load_object_paths()
     uids = uids[args.start_i : args.end_i]
-
+    annotation = objaverse.load_annotations(uids)
+    uids = sorted(uids, key=lambda x: annotation[x]['likeCount'], reverse=True)[: args.n_objects]
+    
     # get the uids that have already been downloaded
     if args.skip_completed:
         completed_uids = get_completed_uids()

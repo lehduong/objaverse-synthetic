@@ -24,7 +24,7 @@ import sys
 import time
 import urllib.request
 from typing import Tuple
-
+import json
 import bpy
 from mathutils import Vector
 
@@ -39,7 +39,7 @@ parser.add_argument("--output_dir", type=str, default="./views")
 parser.add_argument(
     "--engine", type=str, default="BLENDER_EEVEE", choices=["CYCLES", "BLENDER_EEVEE"]
 )
-parser.add_argument("--num_images", type=int, default=12)
+parser.add_argument("--num_images", type=int, default=120)
 parser.add_argument("--camera_dist", type=int, default=1.5)
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
@@ -52,8 +52,8 @@ render = scene.render
 render.engine = args.engine
 render.image_settings.file_format = "PNG"
 render.image_settings.color_mode = "RGBA"
-render.resolution_x = 512
-render.resolution_y = 512
+render.resolution_x = 800
+render.resolution_y = 800
 render.resolution_percentage = 100
 
 scene.cycles.device = "GPU"
@@ -187,10 +187,24 @@ def save_images(object_file: str) -> None:
     empty = bpy.data.objects.new("Empty", None)
     scene.collection.objects.link(empty)
     cam_constraint.target = empty
+    # list of camera pose
+    frames = {'train': [], 'val': [], 'test': []}
+    to_export = {
+        "camera_angle_x": bpy.data.cameras[0].angle_x,
+        "width": render.resolution_x,
+        "height": render.resolution_y
+    }
     for i in range(args.num_images):
+        bpy.context.scene.frame_set(i)
+        if i % 6 == 2:
+            mode = 'test'
+        elif i % 6 == 1:
+            mode = 'val'
+        else:
+            mode = 'train'
         # set the camera position
         theta = (i / args.num_images) * math.pi * 2
-        phi = math.radians(60)
+        phi = math.radians(random.randint(20, 90))
         point = (
             args.camera_dist * math.sin(phi) * math.cos(theta),
             args.camera_dist * math.sin(phi) * math.sin(theta),
@@ -198,10 +212,35 @@ def save_images(object_file: str) -> None:
         )
         cam.location = point
         # render the image
-        render_path = os.path.join(args.output_dir, object_uid, f"{i:03d}.png")
+        render_path = os.path.join(args.output_dir, object_uid, mode, f"{i:03d}.png")
         scene.render.filepath = render_path
         bpy.ops.render.render(write_still=True)
-
+        pos, rt, scale = cam.matrix_world.decompose()
+        bpy.context.view_layer.update()
+        to_add = get_frame_poses(pos, rt, i, mode)
+        frames[mode].append(to_add)
+    # save camera pose
+    for mode in ['train', 'val', 'test']:   
+        with open(f'{args.output_dir}/{object_uid}/transforms_{mode}.json', 'w') as f:
+            to_export['frames'] = frames[mode]
+            json.dump(to_export, f,indent=4)
+            
+            
+def get_frame_poses(pos, rt, i, mode):
+    rt = rt.to_matrix()
+    matrix = []
+    for ii in range(3):
+        a = []
+        for jj in range(3):
+            a.append(rt[ii][jj])
+        a.append(pos[ii])
+        matrix.append(a)
+    matrix.append([0.0, 0.0, 0.0, 1.0])
+    to_add = {\
+        "file_path":f'{mode}/{str(i).zfill(3)}',
+        "transform_matrix":matrix
+    }
+    return to_add    
 
 def download_object(object_url: str) -> str:
     """Download the object and return the path."""
