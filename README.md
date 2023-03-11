@@ -53,9 +53,9 @@ This script sorts a list of uid from `start_i` to `end_i` and output the path of
 
 ```bash
 python3 scripts/distributed.py \
-  --num_gpus <NUM_GPUs> \
-  --workers_per_gpu <WORKERS_PER_GPU> \
-  --input_models_path <INPUT_MODELS_PATH>
+  --num_gpus 8 \
+  --workers_per_gpu 2 \
+  --input_models_path input_models_path.json
 ```
 
 This will then render the images into the `views` directory.

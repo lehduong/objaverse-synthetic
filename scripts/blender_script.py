@@ -40,7 +40,7 @@ parser.add_argument("--output_dir", type=str, default="./views")
 parser.add_argument(
     "--engine", type=str, default="BLENDER_EEVEE", choices=["CYCLES", "BLENDER_EEVEE"]
 )
-parser.add_argument("--num_images", type=int, default=120)
+parser.add_argument("--num_images", type=int, default=24)
 parser.add_argument("--camera_dist", type=int, default=4)
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
@@ -207,7 +207,7 @@ def set_output_extension(type='png'):
     else:
         raise ValueError("Expect type to be png or exr")
     
-def save_images(object_file: str) -> None:
+def save_images(object_file: str, save_mesh=False) -> None:
     """Saves rendered images of the object in the scene."""
     os.makedirs(args.output_dir, exist_ok=True)
     reset_scene()
@@ -271,8 +271,17 @@ def save_images(object_file: str) -> None:
         with open(f'{args.output_dir}/{object_uid}/transforms_{mode}.json', 'w') as f:
             to_export['frames'] = frames[mode]
             json.dump(to_export, f,indent=4)
-            
-            
+    if save_mesh:
+        while bpy.data.objects:
+            bpy.data.objects.remove(bpy.data.objects[0], do_unlink=True)
+        load_object(object_file)
+        normalize_scene(scale=3.5) #TODO: how large is the object
+        bpy.ops.object.select_all(action="DESELECT")
+        for obj in scene_meshes():
+            obj.select_set(True)
+            bpy.context.view_layer.objects.active = obj
+        bpy.ops.wm.obj_export(filepath=os.path.join(args.output_dir, object_uid, "mesh.obj"), export_selected_objects=True)
+
 def get_frame_poses(pos, rt, i, mode):
     rt = rt.to_matrix()
     matrix = []
@@ -311,7 +320,7 @@ if __name__ == "__main__":
             local_path = download_object(args.object_path)
         else:
             local_path = args.object_path
-        save_images(local_path)
+        save_images(local_path, save_mesh=True)
         end_i = time.time()
         print("Finished", local_path, "in", end_i - start_i, "seconds")
         # delete the object if it was downloaded
