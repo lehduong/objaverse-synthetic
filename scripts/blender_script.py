@@ -62,7 +62,7 @@ render.resolution_y = 800
 render.resolution_percentage = 100
 
 scene.cycles.device = "GPU"
-scene.cycles.samples = 32
+scene.cycles.samples = 64
 scene.cycles.diffuse_bounces = 1
 scene.cycles.glossy_bounces = 1
 scene.cycles.transparent_max_bounces = 3
@@ -82,18 +82,25 @@ def sample_point_on_sphere(radius: float) -> Tuple[float, float, float]:
     )
 
 
-def add_lighting() -> None:
+def add_lighting(height=3) -> None:
     # delete the default light
     bpy.data.objects["Light"].select_set(True)
     bpy.ops.object.delete()
     # add a new light
+    locations = [[-1, -1, height], [-1, 1, height], [1, 1, height], [1, -1, height], [-1, -1, -height], [-1, 1, -height], [1, 1, -height], [1, -1, -height]]
     bpy.ops.object.light_add(type="AREA")
-    light2 = bpy.data.lights["Area"]
-    light2.energy = 30000
-    bpy.data.objects["Area"].location[2] = 0.5
-    bpy.data.objects["Area"].scale[0] = 100
-    bpy.data.objects["Area"].scale[1] = 100
-    bpy.data.objects["Area"].scale[2] = 100
+    for i, location in enumerate(locations):
+        bpy.ops.object.light_add(type="AREA")
+        light_name = "Area.{}".format(str(i+1).zfill(3))
+        light = bpy.data.lights[light_name]
+        light.energy = 30000
+        bpy.data.objects[light_name].location = location
+        bpy.data.objects[light_name].scale[0] = 100
+        bpy.data.objects[light_name].scale[1] = 100
+        bpy.data.objects[light_name].scale[2] = 100
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.data.objects["Area"].select_set(True)
+    bpy.ops.object.delete()
 
 
 def reset_scene() -> None:
