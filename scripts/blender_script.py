@@ -40,7 +40,7 @@ parser.add_argument("--output_dir", type=str, default="./views")
 parser.add_argument(
     "--engine", type=str, default="BLENDER_EEVEE", choices=["CYCLES", "BLENDER_EEVEE"]
 )
-parser.add_argument("--num_images", type=int, default=24)
+parser.add_argument("--num_images", type=int, default=20)
 parser.add_argument("--camera_dist", type=int, default=4)
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
@@ -192,16 +192,14 @@ def setup_depth_viewer(max_depth=10):
     rl = tree.nodes.new('CompositorNodeRLayers')      
     map = tree.nodes.new('CompositorNodeMapValue') 
     map.min[0] = 0
-    map.max[0] = 10
-    map.use_min = True
-    map.use_max = True
+    map.max[0] = max_depth
+    map.use_min = False
+    map.use_max = False
+    map.size[0] = 1
     set_output_extension('exr')
-    normalize = tree.nodes.new('CompositorNodeNormalize') 
     output_file = tree.nodes.new('CompositorNodeOutputFile')
-    # links.new(rl.outputs['Depth'], normalize.inputs[0]) 
     links.new(rl.outputs['Depth'], map.inputs[0])
     links.new(map.outputs[0], output_file.inputs[0])
-
     return rl, output_file
 
 def set_output_extension(type='png'):
@@ -210,7 +208,7 @@ def set_output_extension(type='png'):
         render.image_settings.color_mode = "RGBA"
     elif type == 'exr':
         render.image_settings.file_format = "OPEN_EXR"
-        render.image_settings.color_mode = "RGB"
+        render.image_settings.color_mode = "BW"
     else:
         raise ValueError("Expect type to be png or exr")
     
@@ -229,7 +227,7 @@ def save_images(object_file: str, save_mesh=False) -> None:
     scene.collection.objects.link(empty)
     cam_constraint.target = empty
     # setup nodes for depth rendering
-    max_depth = 25 # clamp depth to be in the range of [0; max_depth]
+    max_depth = 1000000000 # clamp depth to be in the range of [0; max_depth]
     _, output_file = setup_depth_viewer(max_depth=max_depth)
     output_file.base_path = os.path.join(args.output_dir, object_uid, 'depth')
     # list of camera pose
@@ -283,11 +281,25 @@ def save_images(object_file: str, save_mesh=False) -> None:
             bpy.data.objects.remove(bpy.data.objects[0], do_unlink=True)
         load_object(object_file)
         normalize_scene(scale=3.5) #TODO: how large is the object
-        bpy.ops.object.select_all(action="DESELECT")
-        for obj in scene_meshes():
-            obj.select_set(True)
-            bpy.context.view_layer.objects.active = obj
-        bpy.ops.wm.obj_export(filepath=os.path.join(args.output_dir, object_uid, "mesh.obj"), export_selected_objects=True)
+        # mesh = join_meshes()
+        # mesh.select_set(True)
+        # bpy.ops.wm.obj_export(filepath=os.path.join(args.output_dir, object_uid, "mesh.obj"), export_selected_objects=True)
+
+def join_meshes() -> bpy.types.Object:
+    """Joins all the meshes in the scene into one mesh."""
+    # get all the meshes in the scene
+    meshes = scene_meshes()
+    # join all of the meshes
+    bpy.ops.object.select_all(action="DESELECT")
+    for mesh in meshes:
+        mesh.select_set(True)
+        bpy.context.view_layer.objects.active = mesh
+    # join the meshes
+    bpy.ops.object.join()
+    meshes = [obj for obj in bpy.data.objects if obj.type == "MESH"]
+    assert len(meshes) == 1
+    mesh = meshes[0]
+    return mesh
 
 def get_frame_poses(pos, rt, i, mode):
     rt = rt.to_matrix()
