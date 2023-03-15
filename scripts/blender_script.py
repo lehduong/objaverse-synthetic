@@ -40,7 +40,7 @@ parser.add_argument("--output_dir", type=str, default="./views")
 parser.add_argument(
     "--engine", type=str, default="BLENDER_EEVEE", choices=["CYCLES", "BLENDER_EEVEE"]
 )
-parser.add_argument("--num_images", type=int, default=20)
+parser.add_argument("--num_images", type=int, default=40)
 parser.add_argument("--camera_dist", type=int, default=4)
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
@@ -212,7 +212,7 @@ def set_output_extension(type='png'):
     else:
         raise ValueError("Expect type to be png or exr")
     
-def save_images(object_file: str, save_mesh=False) -> None:
+def save_images(object_file: str, save_mesh=True) -> None:
     """Saves rendered images of the object in the scene."""
     os.makedirs(args.output_dir, exist_ok=True)
     reset_scene()
@@ -281,8 +281,9 @@ def save_images(object_file: str, save_mesh=False) -> None:
             bpy.data.objects.remove(bpy.data.objects[0], do_unlink=True)
         load_object(object_file)
         normalize_scene(scale=3.5) #TODO: how large is the object
-        # mesh = join_meshes()
-        # mesh.select_set(True)
+        mesh = join_meshes()
+        mesh.select_set(True)
+        bpy.ops.export_mesh.ply(filepath=os.path.join(args.output_dir, object_uid, "mesh.ply"), use_selection=True)
         # bpy.ops.wm.obj_export(filepath=os.path.join(args.output_dir, object_uid, "mesh.obj"), export_selected_objects=True)
 
 def join_meshes() -> bpy.types.Object:

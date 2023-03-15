@@ -1,4 +1,4 @@
-# Objaverse Rendering
+# Objaverse Synthetic
 
 Scripts to perform distributed rendering of Objaverse objects in Blender across many GPUs and processes.
 
