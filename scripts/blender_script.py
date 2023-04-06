@@ -36,11 +36,11 @@ parser.add_argument(
     required=True,
     help="Path to the object file",
 )
-parser.add_argument("--output_dir", type=str, default="./views")
+parser.add_argument("--output_dir", type=str, default="/dataset/objaverse/50k_objects")
 parser.add_argument(
     "--engine", type=str, default="BLENDER_EEVEE", choices=["CYCLES", "BLENDER_EEVEE"]
 )
-parser.add_argument("--num_images", type=int, default=40)
+parser.add_argument("--num_images", type=int, default=20)
 parser.add_argument("--camera_dist", type=int, default=4)
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
@@ -215,6 +215,10 @@ def set_output_extension(type='png'):
 def save_images(object_file: str, save_mesh=True) -> None:
     """Saves rendered images of the object in the scene."""
     os.makedirs(args.output_dir, exist_ok=True)
+    # already render
+    if os.path.exists(os.path.join(args.output_dir, object_uid, 'transforms_train.json')):
+        return
+    
     reset_scene()
     # load the object
     load_object(object_file)
@@ -239,7 +243,8 @@ def save_images(object_file: str, save_mesh=True) -> None:
         "clamp_depth": max_depth
     }
     for i in range(args.num_images):
-        bpy.context.scene.frame_set(i)
+        # bpy.context.scene.frame_set(i)
+        output_file.base_path = os.path.join(args.output_dir, object_uid, 'depth_'+str(i))
         if i % 6 == 2:
             mode = 'test'
         elif i % 6 == 1:
@@ -248,7 +253,7 @@ def save_images(object_file: str, save_mesh=True) -> None:
             mode = 'train'
         # set the camera position
         theta = (i / args.num_images) * math.pi * 2
-        phi = math.radians(random.randint(20, 90))
+        phi = math.radians(random.randint(35, 90))
         point = (
             args.camera_dist * math.sin(phi) * math.cos(theta),
             args.camera_dist * math.sin(phi) * math.sin(theta),
@@ -283,8 +288,8 @@ def save_images(object_file: str, save_mesh=True) -> None:
         normalize_scene(scale=3.5) #TODO: how large is the object
         mesh = join_meshes()
         mesh.select_set(True)
-        bpy.ops.export_mesh.ply(filepath=os.path.join(args.output_dir, object_uid, "mesh.ply"), use_selection=True)
-        # bpy.ops.wm.obj_export(filepath=os.path.join(args.output_dir, object_uid, "mesh.obj"), export_selected_objects=True)
+        #bpy.ops.export_mesh.ply(filepath=os.path.join(args.output_dir, object_uid, "mesh.ply"), use_selection=True)
+        bpy.ops.wm.obj_export(filepath=os.path.join(args.output_dir, object_uid, "mesh.obj"), export_selected_objects=True, forward_axis='Y', up_axis='Z')
 
 def join_meshes() -> bpy.types.Object:
     """Joins all the meshes in the scene into one mesh."""
