@@ -1,6 +1,7 @@
 import argparse
 import json
 import random
+import os
 from dataclasses import dataclass
 
 import boto3
@@ -20,10 +21,13 @@ class Args:
     """total number of files uploaded"""
 
     n_objects: int = 10
-    """total number of objects will be render."""
+    """total number of objects will be rendered."""
     
     skip_completed: bool = False
     """whether to skip the files that have already been downloaded"""
+    
+    uid_json_path: str = None
+    """path to json file contains all uids that need to be download"""
 
 
 def get_completed_uids():
@@ -45,17 +49,18 @@ def get_completed_uids():
 # set the random seed to 42
 if __name__ == "__main__":
     args = tyro.cli(Args)
-    
-    random.seed(42)
-
-    uids = objaverse.load_uids()
-
-    random.shuffle(uids)
-
     object_paths = objaverse._load_object_paths()
-    uids = uids[args.start_i : args.end_i]
-    annotation = objaverse.load_annotations(uids)
-    uids = sorted(uids, key=lambda x: annotation[x]['likeCount'], reverse=True)[: args.n_objects]
+    
+    if os.path.exists(args.uid_json_path):
+        with open(args.uid_json_path) as f:
+            uids = json.load(f)
+    else:
+        random.seed(42)
+        uids = objaverse.load_uids()
+        random.shuffle(uids)
+        uids = uids[args.start_i : args.end_i]
+        annotation = objaverse.load_annotations(uids)
+        uids = sorted(uids, key=lambda x: annotation[x]['likeCount'], reverse=True)[: args.n_objects]
     
     # get the uids that have already been downloaded
     if args.skip_completed:

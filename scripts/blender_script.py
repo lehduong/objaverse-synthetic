@@ -36,11 +36,11 @@ parser.add_argument(
     required=True,
     help="Path to the object file",
 )
-parser.add_argument("--output_dir", type=str, default="/dataset/objaverse/50k_objects")
+parser.add_argument("--output_dir", type=str, default="objaverse_synthetic")
 parser.add_argument(
     "--engine", type=str, default="BLENDER_EEVEE", choices=["CYCLES", "BLENDER_EEVEE"]
 )
-parser.add_argument("--num_images", type=int, default=20)
+parser.add_argument("--num_images", type=int, default=300)
 parser.add_argument("--camera_dist", type=int, default=4)
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
@@ -215,6 +215,7 @@ def set_output_extension(type='png'):
 def save_images(object_file: str, save_mesh=True) -> None:
     """Saves rendered images of the object in the scene."""
     os.makedirs(args.output_dir, exist_ok=True)
+    object_uid = os.path.basename(object_file).split(".")[0]
     # already render
     if os.path.exists(os.path.join(args.output_dir, object_uid, 'transforms_train.json')):
         return
@@ -222,32 +223,31 @@ def save_images(object_file: str, save_mesh=True) -> None:
     reset_scene()
     # load the object
     load_object(object_file)
-    object_uid = os.path.basename(object_file).split(".")[0]
-    normalize_scene(scale=3.5) #TODO: how large is the object
+    normalize_scene(scale=2.5) #TODO: how large is the object
     add_lighting()
     cam, cam_constraint = setup_camera()
     # create an empty object to track
     empty = bpy.data.objects.new("Empty", None)
     scene.collection.objects.link(empty)
     cam_constraint.target = empty
-    # setup nodes for depth rendering
-    max_depth = 1000000000 # clamp depth to be in the range of [0; max_depth]
-    _, output_file = setup_depth_viewer(max_depth=max_depth)
-    output_file.base_path = os.path.join(args.output_dir, object_uid, 'depth')
+    # # setup nodes for depth rendering
+    # max_depth = 1000000000 # clamp depth to be in the range of [0; max_depth]
+    # _, output_file = setup_depth_viewer(max_depth=max_depth)
+    # output_file.base_path = os.path.join(args.output_dir, object_uid, 'depth')
     # list of camera pose
     frames = {'train': [], 'val': [], 'test': []}
     to_export = {
         "camera_angle_x": bpy.data.cameras[0].angle_x,
         "width": render.resolution_x,
         "height": render.resolution_y,
-        "clamp_depth": max_depth
+        # "clamp_depth": max_depth
     }
     for i in range(args.num_images):
         # bpy.context.scene.frame_set(i)
-        output_file.base_path = os.path.join(args.output_dir, object_uid, 'depth_'+str(i))
-        if i % 6 == 2:
+        # output_file.base_path = os.path.join(args.output_dir, object_uid, 'depth_'+str(i))
+        if i % 3 == 2:
             mode = 'test'
-        elif i % 6 == 1:
+        elif i % 3 == 1:
             mode = 'val'
         else:
             mode = 'train'
@@ -285,7 +285,7 @@ def save_images(object_file: str, save_mesh=True) -> None:
         while bpy.data.objects:
             bpy.data.objects.remove(bpy.data.objects[0], do_unlink=True)
         load_object(object_file)
-        normalize_scene(scale=3.5) #TODO: how large is the object
+        normalize_scene(scale=2.5) #TODO: how large is the object
         mesh = join_meshes()
         mesh.select_set(True)
         #bpy.ops.export_mesh.ply(filepath=os.path.join(args.output_dir, object_uid, "mesh.ply"), use_selection=True)
