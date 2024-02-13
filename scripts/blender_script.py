@@ -40,8 +40,8 @@ parser.add_argument("--output_dir", type=str, default="objaverse_synthetic")
 parser.add_argument(
     "--engine", type=str, default="BLENDER_EEVEE", choices=["CYCLES", "BLENDER_EEVEE"]
 )
-parser.add_argument("--num_images", type=int, default=300)
-parser.add_argument("--camera_dist", type=int, default=4)
+parser.add_argument("--num_images", type=int, default=50)
+parser.add_argument("--camera_dist", type=int, default=1.5)
 
 argv = sys.argv[sys.argv.index("--") + 1 :]
 args = parser.parse_args(argv)
@@ -57,8 +57,8 @@ scene.view_layers["ViewLayer"].use_pass_z = True
 render.engine = args.engine
 render.image_settings.file_format = "PNG"
 render.image_settings.color_mode = "RGBA"
-render.resolution_x = 800
-render.resolution_y = 800
+render.resolution_x = 512
+render.resolution_y = 512
 render.resolution_percentage = 100
 
 scene.cycles.device = "GPU"
@@ -223,7 +223,7 @@ def save_images(object_file: str, save_mesh=True) -> None:
     reset_scene()
     # load the object
     load_object(object_file)
-    normalize_scene(scale=2.5) #TODO: how large is the object
+    normalize_scene(scale=1) #TODO: how large is the object
     add_lighting()
     cam, cam_constraint = setup_camera()
     # create an empty object to track
@@ -285,7 +285,7 @@ def save_images(object_file: str, save_mesh=True) -> None:
         while bpy.data.objects:
             bpy.data.objects.remove(bpy.data.objects[0], do_unlink=True)
         load_object(object_file)
-        normalize_scene(scale=2.5) #TODO: how large is the object
+        normalize_scene(scale=1) #TODO: how large is the object
         mesh = join_meshes()
         mesh.select_set(True)
         #bpy.ops.export_mesh.ply(filepath=os.path.join(args.output_dir, object_uid, "mesh.ply"), use_selection=True)
@@ -325,6 +325,8 @@ def get_frame_poses(pos, rt, i, mode):
 
 def download_object(object_url: str) -> str:
     """Download the object and return the path."""
+    import ssl
+    ssl._create_default_https_context = ssl._create_unverified_context
     # uid = uuid.uuid4()
     uid = object_url.split("/")[-1].split(".")[0]
     tmp_local_path = os.path.join("tmp-objects", f"{uid}.glb" + ".tmp")
